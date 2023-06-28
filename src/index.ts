@@ -105,6 +105,7 @@ const checkTokenBearer = (users: [string], options?: optionsType) => {
           req.tokenUser = user;
           req.token = token;
           next();
+          return 1;
         }
       }
       if (options?.required == true) {
