@@ -40,11 +40,11 @@ const checker = async ({ token, keyName }: ckeckerType) => {
       throw "Key undefined";
     }
     const JWT_KEY = config.keys[keyName];
-    const decoded = await verify(token, JWT_KEY);
+    const decoded: any = await verify(token, JWT_KEY);
     return Promise.resolve({
       success: true,
       message: "success",
-      data: decoded,
+      ...decoded,
     });
   } catch (error) {
     return Promise.resolve({
@@ -97,11 +97,11 @@ const checkTokenBearer = (users: [string], options?: optionsType) => {
           keyName: user,
         });
         if (result.success) {
-          req.authMaster = result.data.authMaster;
-          req._id = result.data.authMaster._id;
-          req.user_id = result.data.authMaster.user_id;
-          req.role = result.data.authMaster.user_role;
-          req.user = result.data.authMaster.result;
+          req.authMaster = result.data;
+          req._id = result.data?._id;
+          req.user_id = result.data?.user_id;
+          req.role = result.data?.user_role;
+          req.user = result.data?.result;
           req.tokenUser = user;
           req.token = token;
           next();
