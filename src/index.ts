@@ -201,3 +201,5 @@ export default {
   checkTokenBasic,
   checkTokenSocket,
 };
+export { authMasterSocket as authMasterSocket } from "./types";
+export { authMasterRequest as authMasterRequest } from "./types";
