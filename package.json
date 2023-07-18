@@ -1,6 +1,6 @@
 {
   "name": "auth-master",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "jwt middleware",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
