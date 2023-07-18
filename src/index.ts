@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import { sign, verify } from "jsonwebtoken";
+
 import {
   createType,
   configType,
   ckeckerType,
   optionsType,
   authMasterRequest,
+  authMasterSocket,
 } from "./types";
 const config: configType = {
   keys: {
@@ -150,4 +152,52 @@ const checkTokenBasic = ({ required }: { required?: Boolean }) => {
     }
   };
 };
-export default { create, checker, config, checkTokenBearer, checkTokenBasic };
+const checkTokenSocket = (users: [string], options?: optionsType) => {
+  return async (socket: authMasterSocket, next: any) => {
+    try {
+      const token: string =
+        socket?.handshake?.headers?.authorization?.toString() ||
+        socket?.handshake?.query.Authorization?.toString();
+      if (!token) {
+        next(new Error("Authentication error"));
+      }
+      for (let index = 0; index < users.length; index++) {
+        const user: any = users[index];
+        const result = await checker({
+          token: token,
+          keyName: user,
+        });
+        if (result.success) {
+          socket.req.authMaster = result.data;
+          socket.req._id = result.data?._id;
+          socket.req.user_id = result.data?.user_id;
+          socket.req.role = result.data?.user_role;
+          socket.req.user = result.data?.result;
+          socket.req.tokenUser = user;
+          socket.req.token = token;
+          socket.req.query = socket?.handshake?.query;
+          socket.req.headers = socket?.handshake?.headers;
+          next();
+          return 1;
+        }
+      }
+      if (options?.required == true) {
+        next(new Error("Authentication error"));
+      } else {
+        socket.req.query = socket?.handshake?.query;
+        socket.req.headers = socket?.handshake?.headers;
+        next();
+      }
+    } catch (error) {
+      next(new Error("Authentication error"));
+    }
+  };
+};
+export default {
+  create,
+  checker,
+  config,
+  checkTokenBearer,
+  checkTokenBasic,
+  checkTokenSocket,
+};

@@ -1,9 +1,25 @@
 import { Request } from "express";
-
+import { Socket } from "socket.io";
+interface User {
+  tokenUser: string;
+  token: string;
+  authMaster: any;
+  authMasterSocket: any;
+  _id: any;
+  user_id: any;
+  role: any;
+  user: any;
+  query: any;
+  headers: any;
+}
+export interface authMasterSocket extends Socket {
+  req: User;
+}
 export interface authMasterRequest extends Request {
   tokenUser: string;
   token: string;
   authMaster: any;
+  authMasterSocket: any;
   _id: any;
   user_id: any;
   role: any;
