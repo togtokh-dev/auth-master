@@ -13,7 +13,7 @@ interface User {
   headers: any;
 }
 export interface authMasterSocket extends Socket {
-  req: User;
+  req?: User | any;
 }
 export interface authMasterRequest extends Request {
   tokenUser: string;
