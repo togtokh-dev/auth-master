@@ -20,9 +20,15 @@ const create = async ({ data, expiresIn, keyName }: createType) => {
       throw "Key undefined";
     }
     const JWT_KEY = config.keys[keyName];
-    const jsontoken = await sign({ data: data }, JWT_KEY, {
-      expiresIn: expiresIn,
-    });
+    const jsontoken = await sign(
+      { data: data },
+      JWT_KEY,
+      expiresIn
+        ? {
+            expiresIn,
+          }
+        : {}
+    );
     return Promise.resolve({
       success: true,
       message: "success",
