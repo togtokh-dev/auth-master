@@ -86,7 +86,7 @@ const basic = async (token: any) => {
     };
   }
 };
-const checkTokenBearer = (users: [string], options?: optionsType) => {
+const checkTokenBearer = (users: string[], options?: optionsType) => {
   return async (req: authMasterRequest, res: Response, next: NextFunction) => {
     try {
       const token_auth = req?.get("authorization");
@@ -158,7 +158,7 @@ const checkTokenBasic = ({ required }: { required?: boolean }) => {
     }
   };
 };
-const checkTokenSocket = (users: [string], options?: optionsType) => {
+const checkTokenSocket = (users: string[], options?: optionsType) => {
   return async (socket: authMasterSocket, next: any) => {
     try {
       const token: string =
