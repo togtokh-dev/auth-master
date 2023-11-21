@@ -91,12 +91,15 @@ const checkTokenBearer = (users: string[], options?: optionsType) => {
     try {
       const token_auth = req?.get("authorization");
       const token_cookie = req?.cookies.token;
+      const query_token = req?.query?.authMasterTokenBearer;
       let token = undefined;
       if (token_auth) {
         token = token_auth;
         token = token?.slice(7);
       } else if (token_cookie) {
         token = token_cookie;
+      } else if (query_token) {
+        token = query_token;
       }
       for (let index = 0; index < users.length; index++) {
         const user: any = users[index];
@@ -136,12 +139,15 @@ const checkTokenBasic = ({ required }: { required?: boolean }) => {
   return async (req: authMasterRequest, res: Response, next: NextFunction) => {
     const token_auth = req.get("authorization");
     const token_cookie = req.cookies.token;
+    const query_token = req?.query?.authMasterTokenBasic;
     let token = undefined;
     if (token_auth) {
       token = token_auth;
       token = token.slice(7);
     } else if (token_cookie) {
       token = token_cookie;
+    } else if (query_token) {
+      token = query_token;
     }
     const result = await basic(token);
     if (result.success) {
