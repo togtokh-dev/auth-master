@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { sign, verify } from "jsonwebtoken";
-
+import responseMaster from "response-master";
 import {
   createType,
   configType,
@@ -120,17 +120,23 @@ const checkTokenBearer = (users: string[], options?: optionsType) => {
         }
       }
       if (options?.required == true) {
-        return res.status(400).json({
+        return responseMaster.JSON(res, {
+          data: null,
           success: false,
-          message: "Нэвтрэх шаардлагатай",
+          status: "Unauthorized",
+          message: "Unauthorized",
+          messageStatus: "Danger",
         });
       } else {
         next();
       }
     } catch (error) {
-      return res.status(400).json({
+      return responseMaster.JSON(res, {
+        data: null,
         success: false,
-        message: "Нэвтрэх шаардлагатай",
+        status: "Unauthorized",
+        message: "Unauthorized",
+        messageStatus: "Danger",
       });
     }
   };
@@ -155,9 +161,12 @@ const checkTokenBasic = ({ required }: { required?: boolean }) => {
       req.tokenUser = "basicToken";
       next();
     } else if (required) {
-      return res.status(400).json({
+      return responseMaster.JSON(res, {
+        data: null,
         success: false,
-        message: "Нэвтрэх шаардлагатай",
+        status: "Unauthorized",
+        message: "Unauthorized",
+        messageStatus: "Danger",
       });
     } else {
       next();
