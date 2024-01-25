@@ -125,7 +125,7 @@ const checkTokenBearer = (users: string[], options?: optionsType) => {
           success: false,
           status: "Unauthorized",
           message: "Unauthorized",
-          messageStatus: "Danger",
+          messageStatus: "danger",
         });
       } else {
         next();
@@ -136,7 +136,7 @@ const checkTokenBearer = (users: string[], options?: optionsType) => {
         success: false,
         status: "Unauthorized",
         message: "Unauthorized",
-        messageStatus: "Danger",
+        messageStatus: "danger",
       });
     }
   };
@@ -166,7 +166,7 @@ const checkTokenBasic = ({ required }: { required?: boolean }) => {
         success: false,
         status: "Unauthorized",
         message: "Unauthorized",
-        messageStatus: "Danger",
+        messageStatus: "danger",
       });
     } else {
       next();
