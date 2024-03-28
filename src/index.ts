@@ -149,7 +149,6 @@ const checkTokenBasic = ({ required }: { required?: boolean }) => {
     let token = undefined;
     if (token_auth) {
       token = token_auth;
-      token = token.slice(7);
     } else if (token_cookie) {
       token = token_cookie;
     } else if (query_token) {
