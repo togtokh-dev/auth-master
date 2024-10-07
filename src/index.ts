@@ -179,9 +179,9 @@ const checkTokenSocket = (users: string[], options?: optionsType) => {
         socket?.handshake?.headers?.authorization?.toString() ||
         socket?.handshake?.query?.Authorization?.toString();
       console.log(token);
-      if (!token) {
-        next(new Error("Authentication error : token алга"));
-      }
+      // if (!token) {
+      //   next(new Error("Authentication error : token алга"));
+      // }
       for (let index = 0; index < users.length; index++) {
         const user: any = users[index];
         const result = await checker({
