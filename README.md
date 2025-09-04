@@ -1,19 +1,344 @@
-# Auth Master
+# auth-master
 
-## Example
-
-```bash
-    import authMaster from "auth-master";
-    authMaster.config.keys.adminToken = "123";
-    async function name() {
-      const token = await authMaster.create({
-        data: { user_name: "" },
-        expiresIn: "1D",
-        keyName: "adminToken",
-      });
-      console.log(token);
-    }
-    name();
-
+**ESM-first** JWT & Basic authentication middleware for **Express** and **Socket.IO**.  
+✅ ESM primary · ✅ CJS fallback · ✅ TypeScript types · ✅ Lightweight
 
 ```
+auth-master/
+├─ src/
+│  ├─ index.ts
+│  ├─ types.ts
+│  └─ ambient.d.ts
+├─ test/
+│  └─ index.ts
+├─ tsconfig.json
+├─ tsconfig.cjs.json
+├─ package.json
+└─ README.md
+```
+
+---
+
+## Install
+
+```bash
+npm i auth-master
+```
+
+- **Node.js**: v18+ recommended
+- **TypeScript**: works great with TS 5+
+- ESM-first (with `.cjs` fallback for CommonJS consumers)
+
+---
+
+## Quick Start
+
+```ts
+import authMaster from "auth-master";
+
+// 1) Register your token keys (names are fully custom)
+authMaster.setKeys({
+  userToken: "secret-user-key",
+  merchantToken: "secret-merchant-key",
+  systemToken: "secret-system-key",
+  adminToken: "secret-admin-key",
+});
+
+// 2) Create a JWT
+const tokenRes = authMaster.create({
+  data: { user_id: 123, user_role: "admin" },
+  keyName: "adminToken",
+  expiresIn: "1h", // or 3600
+});
+console.log(tokenRes); // { data: string|null, success: boolean, message: string, code: "200"|"500" }
+
+// 3) Express: Protect a route using Bearer token
+import express from "express";
+const app = express();
+
+app.get(
+  "/secure",
+  authMaster.checkTokenBearer(["adminToken", "systemToken"], {
+    required: true,
+  }),
+  (req, res) => {
+    res.json({ ok: true, user: req.user, role: req.role });
+  },
+);
+```
+
+---
+
+## Also supports Basic Auth
+
+```ts
+app.get(
+  "/basic",
+  authMaster.checkTokenBasic({ required: true }),
+  (req, res) => {
+    res.json({ basic: req.authMaster });
+  },
+);
+```
+
+---
+
+## Socket.IO
+
+```ts
+import { Server } from "socket.io";
+import { createServer } from "http";
+
+const server = createServer();
+const io = new Server(server, { cors: { origin: "*" } });
+
+io.use(authMaster.checkTokenSocket(["userToken"], { required: true }));
+
+io.on("connection", (socket) => {
+  socket.emit("hello", { uid: socket.req?.user_id ?? "anonymous" });
+});
+```
+
+---
+
+## Response Shape
+
+All exported functions and middleware-produced responses **conform to a single shape**:
+
+```ts
+type JsonResp<T = any> = {
+  data: T | null;
+  success: boolean;
+  message: string;
+  code: string; // HTTP-like code as string: "200", "400", "401", "500", ...
+};
+```
+
+- `create`, `checker`, `basic` return this shape directly.
+- Middleware returns this shape on errors (e.g. `401`) via `res.status(...).json(...)`.
+
+---
+
+## API Reference
+
+### `setKeys(keys: Record<string, string>) => { keys: Record<string, string> }`
+
+Registers your JWT secrets by **name** (the name will be referenced as `keyName` elsewhere).
+
+```ts
+authMaster.setKeys({
+  userToken: "secret-user-key",
+  merchantToken: "secret-merchant-key",
+  systemToken: "secret-system-key",
+  adminToken: "secret-admin-key",
+});
+```
+
+- Keys are stored in-memory (per-process).
+- Call this once at startup (before using `create`/`checker`/middlewares).
+
+---
+
+### `create(args: CreateType): JsonResp<string>`
+
+**Create** a JWT using one of your registered keys.
+
+**Type**
+
+```ts
+interface CreateType {
+  data: any; // Payload to embed → stored under { data: ... }
+  keyName: string; // One of the names you passed to setKeys()
+  expiresIn?: string | number; // e.g. "1h", "2d", or 3600 (seconds)
+}
+```
+
+**Returns**
+
+- On success: `{ success: true, code: "200", data: "<jwt>", message: "success" }`
+- On error: `{ success: false, code: "500", data: null, message: "..." }`
+
+**Example**
+
+```ts
+const res = authMaster.create({
+  data: { user_id: 1, user_role: "admin" },
+  keyName: "adminToken",
+  expiresIn: "1h",
+});
+```
+
+---
+
+### `checker(args: CheckerType): JsonResp<any>`
+
+**Verify** a JWT using one of your registered keys.
+
+**Type**
+
+```ts
+interface CheckerType {
+  token: string | null | undefined; // Bearer token string (with or without "Bearer ")
+  keyName: string; // one of your keys
+}
+```
+
+**Returns**
+
+- On success: `{ success: true, code: "200", data: <decoded>, message: "success" }`
+- On failure: `{ success: false, code: "401", data: null, message: "<reason>" }`
+
+**Example**
+
+```ts
+const check = authMaster.checker({
+  token: tokenRes.data!,
+  keyName: "adminToken",
+});
+```
+
+---
+
+### `basic(authHeader?: string): JsonResp<{ username: string; password: string }>`
+
+Decodes **Basic** authorization header into `{ username, password }`.
+
+**Example**
+
+```ts
+const header = "Basic " + Buffer.from("john:secret").toString("base64");
+const res = authMaster.basic(header);
+// { success: true, code: "200", data: { username: "john", password: "secret" }, message: "success" }
+```
+
+On invalid/missing header, returns `success: false` with `code: "400"` or `"500"`.
+
+---
+
+### `checkTokenBearer(allowedKeys: string[], options?: { required?: boolean })`
+
+**Express middleware** that verifies a **Bearer** token (header/cookie/query).
+
+- **Accepted token sources** (first match wins):
+
+  - `Authorization: Bearer <token>`
+  - Cookie: `token`
+  - Query: `?authMasterTokenBearer=<token>`
+
+- **If verified**:
+
+  - Calls `next()`
+  - Populates these fields on `req`:
+    - `req.tokenUser` (the key name that passed)
+    - `req.token` (raw token)
+    - `req.authMaster` (full JWT payload)
+    - `req._id`, `req.user_id`, `req.role`, `req.user` (if present in payload)
+
+- **If not verified**:
+  - If `required: true` → `res.status(401).json({ data:null, success:false, message:"Unauthorized", code:"401" })`
+  - Otherwise → `next()` (let your handler decide)
+
+---
+
+### `checkTokenBasic(options?: { required?: boolean })`
+
+**Express middleware** that parses **Basic** auth from:
+
+- `Authorization: Basic <base64>`
+- Cookie `token`
+- Query `?authMasterTokenBasic=<Basic ...>`
+
+**Behavior**
+
+- On success: `next()` and `req.authMaster = { username, password }`, `req.tokenUser = "basicToken"`
+- On failure:
+  - If `required: true` → 401 JSON (standard shape)
+  - Otherwise → `next()`
+
+---
+
+### `checkTokenSocket(allowedKeys: string[], options?: { required?: boolean })`
+
+**Socket.IO middleware** that verifies a Bearer token from:
+
+- `socket.handshake.headers.authorization`
+- `socket.handshake.query.Authorization`
+- `socket.handshake.query.authMasterTokenBearer`
+
+**Behavior**
+
+- On success: attaches `socket.req = { ... }` with the same fields as the Express variant.
+- On failure:
+  - If `required: true` → `next(new Error("Authentication error: invalid token"))`
+  - Otherwise → `socket.req = { query, headers }` and `next()`
+
+---
+
+## TypeScript Types
+
+Key exported types (from `types.ts`):
+
+```ts
+export interface AuthMasterRequest extends Request {
+  tokenUser?: string;
+  token?: string;
+  authMaster?: any;
+  authMasterSocket?: any;
+  _id?: any;
+  user_id?: any;
+  role?: any;
+  user?: any;
+}
+
+export interface AuthMasterSocket extends Socket {
+  req?: {
+    tokenUser?: string;
+    token?: string;
+    authMaster?: any;
+    _id?: any;
+    user_id?: any;
+    role?: any;
+    user?: any;
+    query?: any;
+    headers?: any;
+  };
+}
+
+export interface CreateType {
+  data: any;
+  keyName: string; // must match a name passed to setKeys()
+  expiresIn?: string | number; // "1h", "2d", or seconds
+}
+
+export interface CheckerType {
+  token: string | null | undefined;
+  keyName: string;
+}
+
+export interface ConfigType<T extends string = string> {
+  keys: Record<T, string>;
+}
+
+export type OptionsType = {
+  required?: boolean;
+};
+```
+
+> The library also includes an ambient declaration that **merges** these fields into Express’s `Request`, so you get autocompletion on `req.user`, `req.user_id`, etc., without extra imports.
+
+---
+
+## Build
+
+- ESM → `dist/index.js`
+- CJS fallback → `dist/index.cjs`
+
+```bash
+npm run build
+```
+
+---
+
+## License
+
+ISC © TOGTOKH.DEV

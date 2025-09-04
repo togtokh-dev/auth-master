@@ -1,228 +1,316 @@
-import { Request, Response, NextFunction } from "express";
-import { sign, verify } from "jsonwebtoken";
-import responseMaster from "response-master";
-import {
-  createType,
-  configType,
-  ckeckerType,
-  optionsType,
-  authMasterRequest,
-  authMasterSocket,
-} from "./types";
-const config: configType = {
-  keys: {
-    TestToken: "tokenkey-1",
-  },
+/**
+ * auth-master
+ * Express + Socket.IO JWT/Auth middleware
+ * Author: TOGTOKH.DEV
+ */
+
+import type { Request, Response, NextFunction } from "express";
+import jwt, { SignOptions, VerifyOptions } from "jsonwebtoken";
+import type {
+  AuthMasterRequest,
+  AuthMasterSocket,
+  CreateType,
+  CheckerType,
+  ConfigType,
+  OptionsType,
+} from "./types.js";
+
+/* -------------------------------------------------
+ * Common JSON shape
+ * ------------------------------------------------- */
+type JsonResp<T = any> = {
+  data: T | null;
+  success: boolean;
+  message: string;
+  code: string; // e.g. "200", "401"
 };
-const create = async ({ data, expiresIn, keyName }: createType) => {
+
+/* -------------------------------------------------
+ * Runtime config (setKeys-аар inject хийнэ)
+ * ------------------------------------------------- */
+let _config: ConfigType<any> = { keys: {} };
+
+/**
+ * setKeys
+ * - Токений нууц күүдийг бүртгэнэ
+ */
+export function setKeys<const T extends Record<string, string>>(keys: T) {
+  _config = { keys };
+  return _config;
+}
+
+/** Internal helper type: config.keys-ийн нэрс */
+type ConfigKeyNames = keyof typeof _config.keys & string;
+
+/* -------------------------------------------------
+ * JWT: Create
+ * ------------------------------------------------- */
+export function create({
+  data,
+  expiresIn,
+  keyName,
+}: CreateType): JsonResp<string> {
   try {
-    if (config.keys[keyName] == undefined) {
-      throw "Key undefined";
-    }
-    const JWT_KEY = config.keys[keyName];
-    const jsontoken = await sign(
-      { data: data },
-      JWT_KEY,
-      expiresIn
-        ? {
-            expiresIn,
-          }
-        : {}
-    );
-    return Promise.resolve({
-      success: true,
-      message: "success",
-      data: jsontoken,
-    });
-  } catch (error) {
-    return Promise.resolve({
+    const key = _config.keys[keyName];
+    if (!key) throw new Error("Key undefined");
+
+    const options: SignOptions = {
+      algorithm: "HS256",
+      ...(expiresIn ? { expiresIn: expiresIn } : {}),
+    };
+
+    const token = jwt.sign({ data }, key, options);
+    return { success: true, message: "success", data: token, code: "200" };
+  } catch (err: any) {
+    return {
       success: false,
-      message: error,
+      message: String(err?.message || err),
       data: null,
-    });
+      code: "500",
+    };
   }
-};
-const checker = async ({ token, keyName }: ckeckerType) => {
+}
+
+/* -------------------------------------------------
+ * JWT: Verify
+ * ------------------------------------------------- */
+export function checker({ token, keyName }: CheckerType): JsonResp<any> {
   try {
-    if (config.keys[keyName] == undefined) {
-      throw "Key undefined";
-    }
-    const JWT_KEY = config.keys[keyName];
-    const decoded: any = await verify(token, JWT_KEY);
-    return Promise.resolve({
-      success: true,
-      message: "success",
-      ...decoded,
-    });
-  } catch (error) {
-    return Promise.resolve({
+    const key = _config.keys[keyName];
+    if (!key) throw new Error("Key undefined");
+    if (!token) throw new Error("Token missing");
+
+    const clean = stripBearer(token);
+    const vopts: VerifyOptions = { algorithms: ["HS256"] };
+    const decoded = jwt.verify(clean, key, vopts);
+
+    return { success: true, message: "success", data: decoded, code: "200" };
+  } catch (err: any) {
+    return {
       success: false,
-      message: error,
+      message: String(err?.message || err),
       data: null,
-    });
+      code: "401",
+    };
   }
-};
-const basic = async (token: any) => {
+}
+
+/* -------------------------------------------------
+ * Basic Auth: Parse
+ * ------------------------------------------------- */
+export function basic(
+  authHeader?: string,
+): JsonResp<{ username: string; password: string }> {
   try {
-    const token_auth = token?.split(" ");
-    if (token_auth[0] == "Basic") {
-      const token = await Buffer.from(token_auth[1], "base64").toString();
+    if (!authHeader) {
       return {
-        success: true,
-        data: {
-          username: token.split(":")[0],
-          password: token.split(":")[1],
-        },
+        success: false,
+        message: "Missing header",
+        data: null,
+        code: "400",
       };
     }
+    const [scheme, value] = authHeader.split(" ");
+    if (scheme !== "Basic" || !value) {
+      return {
+        success: false,
+        message: "Invalid header",
+        data: null,
+        code: "400",
+      };
+    }
+    const decoded = Buffer.from(value, "base64").toString("utf8");
+    const idx = decoded.indexOf(":");
+    if (idx === -1) {
+      return {
+        success: false,
+        message: "Invalid Basic payload",
+        data: null,
+        code: "400",
+      };
+    }
+    const username = decoded.slice(0, idx);
+    const password = decoded.slice(idx + 1);
     return {
-      success: false,
-      data: null,
+      success: true,
+      message: "success",
+      data: { username, password },
+      code: "200",
     };
-  } catch (error) {
+  } catch (err: any) {
     return {
       success: false,
+      message: String(err?.message || err),
       data: null,
+      code: "500",
     };
   }
-};
-const checkTokenBearer = (users: string[], options?: optionsType) => {
-  return async (req: authMasterRequest, res: Response, next: NextFunction) => {
+}
+
+/* -------------------------------------------------
+ * Express Middleware: Bearer
+ * ------------------------------------------------- */
+export function checkTokenBearer(
+  users: ConfigKeyNames[],
+  options?: OptionsType,
+) {
+  return (req: AuthMasterRequest, res: Response, next: NextFunction) => {
     try {
-      const token_auth = req?.get("authorization");
-      const token_cookie = req?.cookies.token;
-      const query_token = req?.query?.authMasterTokenBearer;
-      let token = undefined;
-      if (token_auth) {
-        token = token_auth;
-        token = token?.slice(7);
-      } else if (token_cookie) {
-        token = token_cookie;
-      } else if (query_token) {
-        token = query_token;
-      }
-      for (let index = 0; index < users.length; index++) {
-        const user: any = users[index];
-        const result = await checker({
-          token: token,
-          keyName: user,
-        });
-        if (result.success) {
-          req.authMaster = result.data;
-          req._id = result.data?._id;
-          req.user_id = result.data?.user_id;
-          req.role = result.data?.user_role;
-          req.user = result.data?.result;
-          req.tokenUser = user;
+      const token = getBearerFromRequest(req);
+
+      for (const keyName of users) {
+        const result = checker({ token, keyName });
+        if (result.success && result.data) {
+          const payload: any = result.data;
+          req.authMaster = payload;
+          req._id = payload?._id;
+          req.user_id = payload?.user_id;
+          req.role = payload?.user_role;
+          req.user = payload?.result;
+          req.tokenUser = keyName;
           req.token = token;
-          next();
-          return 1;
+          return next();
         }
       }
-      if (options?.required == true) {
-        return responseMaster.JSON(res, {
+
+      if (options?.required) {
+        return res.status(401).json({
           data: null,
           success: false,
-          status: "Unauthorized",
           message: "Unauthorized",
           code: "401",
-        });
-      } else {
-        next();
+        } satisfies JsonResp);
       }
-    } catch (error) {
-      return responseMaster.JSON(res, {
+
+      return next();
+    } catch {
+      return res.status(401).json({
         data: null,
         success: false,
-        status: "Unauthorized",
         message: "Unauthorized",
         code: "401",
-      });
+      } satisfies JsonResp);
     }
   };
-};
-const checkTokenBasic = ({ required }: { required?: boolean }) => {
-  return async (req: authMasterRequest, res: Response, next: NextFunction) => {
-    const token_auth = req.get("authorization");
-    const token_cookie = req.cookies.token;
-    const query_token = req?.query?.authMasterTokenBasic;
-    let token = undefined;
-    if (token_auth) {
-      token = token_auth;
-    } else if (token_cookie) {
-      token = token_cookie;
-    } else if (query_token) {
-      token = query_token;
-    }
-    const result = await basic(token);
+}
+
+/* -------------------------------------------------
+ * Express Middleware: Basic
+ * ------------------------------------------------- */
+export function checkTokenBasic({ required }: OptionsType = {}) {
+  return (req: AuthMasterRequest, res: Response, next: NextFunction) => {
+    const token =
+      req.get("authorization") ??
+      (req as any)?.cookies?.token ??
+      ((req as any)?.query?.authMasterTokenBasic as string | undefined);
+
+    const result = basic(token);
     if (result.success) {
       req.authMaster = result.data;
       req.tokenUser = "basicToken";
-      next();
-    } else if (required) {
-      return responseMaster.JSON(res, {
+      return next();
+    }
+
+    if (required) {
+      return res.status(401).json({
         data: null,
         success: false,
-        status: "Unauthorized",
         message: "Unauthorized",
         code: "401",
-      });
-    } else {
-      next();
+      } satisfies JsonResp);
     }
+
+    return next();
   };
-};
-const checkTokenSocket = (users: string[], options?: optionsType) => {
-  return async (socket: authMasterSocket, next: any) => {
+}
+
+/* -------------------------------------------------
+ * Socket.IO Middleware
+ * ------------------------------------------------- */
+export function checkTokenSocket(
+  users: ConfigKeyNames[],
+  options?: OptionsType,
+) {
+  return (socket: AuthMasterSocket, next: (err?: Error) => void) => {
     try {
-      const token: string =
-        socket?.handshake?.headers?.authorization?.toString() ||
-        socket?.handshake?.query?.Authorization?.toString();
-      console.log(token);
-      // if (!token) {
-      //   next(new Error("Authentication error : token алга"));
-      // }
-      for (let index = 0; index < users.length; index++) {
-        const user: any = users[index];
-        const result = await checker({
-          token: token,
-          keyName: user,
-        });
-        if (result.success) {
-          socket.req = {};
-          socket.req.authMaster = result.data;
-          socket.req._id = result.data?._id;
-          socket.req.user_id = result.data?.user_id;
-          socket.req.role = result.data?.user_role;
-          socket.req.user = result.data?.result;
-          socket.req.tokenUser = user;
-          socket.req.token = token;
-          socket.req.query = socket?.handshake?.query;
-          socket.req.headers = socket?.handshake?.headers;
-          next();
-          return 1;
+      const raw =
+        socket?.handshake?.headers?.authorization?.toString() ??
+        (socket?.handshake?.query?.Authorization as string | undefined) ??
+        (socket?.handshake?.query?.authMasterTokenBearer as string | undefined);
+
+      const token = stripBearer(raw);
+
+      for (const keyName of users) {
+        const result = checker({ token, keyName });
+        if (result.success && result.data) {
+          const payload: any = result.data;
+          socket.req = {
+            authMaster: payload,
+            _id: payload?._id,
+            user_id: payload?.user_id,
+            role: payload?.user_role,
+            user: payload?.result,
+            tokenUser: keyName,
+            token,
+            query: socket.handshake.query,
+            headers: socket.handshake.headers,
+          };
+          return next();
         }
       }
-      if (options?.required == true) {
-        next(new Error("Authentication error : token буруу"));
-      } else {
-        socket.req = {};
-        socket.req.query = socket?.handshake?.query;
-        socket.req.headers = socket?.handshake?.headers;
-        next();
+
+      if (options?.required) {
+        return next(new Error("Authentication error: invalid token"));
       }
-    } catch (error) {
-      next(new Error("Authentication error :" + error));
+
+      socket.req = {
+        query: socket.handshake.query,
+        headers: socket.handshake.headers,
+      };
+      return next();
+    } catch (err: any) {
+      return next(
+        new Error(`Authentication error: ${String(err?.message || err)}`),
+      );
     }
   };
-};
-export default {
+}
+
+/* -------------------------------------------------
+ * Helpers
+ * ------------------------------------------------- */
+function stripBearer(input?: string): string {
+  if (!input) return "";
+  const trimmed = input.trim();
+  return trimmed.toLowerCase().startsWith("bearer ")
+    ? trimmed.slice(7).trim()
+    : trimmed;
+}
+
+function getBearerFromRequest(req: Request): string | undefined {
+  const h = req.get("authorization");
+  const c = (req as any)?.cookies?.token;
+  const q = (req as any)?.query?.authMasterTokenBearer as string | undefined;
+  return h ? stripBearer(h) : c ?? q;
+}
+
+/* -------------------------------------------------
+ * Default export (friendlier API)
+ * ------------------------------------------------- */
+const authMaster = {
+  setKeys,
   create,
   checker,
-  config,
+  basic,
+  get config() {
+    return _config;
+  },
   checkTokenBearer,
   checkTokenBasic,
   checkTokenSocket,
 };
-export { authMasterSocket as authMasterSocket } from "./types";
-export { authMasterRequest as authMasterRequest } from "./types";
+
+export default authMaster;
+
+// Type exports (runtime-free)
+export type { AuthMasterSocket, AuthMasterRequest } from "./types.js";
