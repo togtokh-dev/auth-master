@@ -1,6 +1,6 @@
 {
   "name": "auth-master",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "JWT + Basic middleware for Express & Socket.IO (ESM-first with CJS fallback)",
   "type": "module",
   "module": "./dist/index.js",

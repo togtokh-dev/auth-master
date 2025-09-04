@@ -184,7 +184,7 @@ export class AuthMaster<
         for (const keyName of users) {
           const result = this.checker({ token, keyName });
           if (result.success && result.data) {
-            const payload: any = result.data;
+            const payload: any = result.data.data;
             req.authMaster = payload;
             req._id = payload?._id;
             req.user_id = payload?.user_id;
@@ -264,7 +264,7 @@ export class AuthMaster<
         for (const keyName of users) {
           const result = this.checker({ token, keyName });
           if (result.success && result.data) {
-            const payload: any = result.data;
+            const payload: any = result.data.data;
             socket.req = {
               authMaster: payload,
               _id: payload?._id,
