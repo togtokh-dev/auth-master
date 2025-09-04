@@ -1,7 +1,7 @@
 # auth-master
 
-**ESM-first** JWT & Basic authentication middleware for **Express** and **Socket.IO**.  
-✅ ESM primary · ✅ CJS fallback · ✅ TypeScript types · ✅ Lightweight
+**ESM-first**, class-based JWT & Basic authentication middleware for **Express** and **Socket.IO**.  
+✅ ESM primary · ✅ TypeScript types · ✅ Lightweight
 
 ```
 auth-master/
@@ -12,7 +12,6 @@ auth-master/
 ├─ test/
 │  └─ index.ts
 ├─ tsconfig.json
-├─ tsconfig.cjs.json
 ├─ package.json
 └─ README.md
 ```
@@ -23,21 +22,25 @@ auth-master/
 
 ```bash
 npm i auth-master
+# peer deps you likely already have in your app:
+npm i express jsonwebtoken socket.io
+# dev types (recommended for TS users)
+npm i -D @types/express @types/jsonwebtoken @types/socket.io
 ```
 
 - **Node.js**: v18+ recommended
-- **TypeScript**: works great with TS 5+
-- ESM-first (with `.cjs` fallback for CommonJS consumers)
+- **TypeScript**: TS 5+
+- **Module system**: ESM-only (no CJS build)
 
 ---
 
-## Quick Start
+## Quick Start (Class API)
 
 ```ts
-import authMaster from "auth-master";
+import { AuthMaster } from "auth-master";
 
-// 1) Register your token keys (names are fully custom)
-authMaster.setKeys({
+// 1) Register your token keys via the constructor (names are fully custom)
+const authMaster = new AuthMaster({
   userToken: "secret-user-key",
   merchantToken: "secret-merchant-key",
   systemToken: "secret-system-key",
@@ -66,6 +69,8 @@ app.get(
   },
 );
 ```
+
+> Need to rotate keys at runtime? Use `authMaster.setKeys({...})` at any time.
 
 ---
 
@@ -121,12 +126,12 @@ type JsonResp<T = any> = {
 
 ## API Reference
 
-### `setKeys(keys: Record<string, string>) => { keys: Record<string, string> }`
+### `new AuthMaster(keys?: Record<string, string>)`
 
 Registers your JWT secrets by **name** (the name will be referenced as `keyName` elsewhere).
 
 ```ts
-authMaster.setKeys({
+const authMaster = new AuthMaster({
   userToken: "secret-user-key",
   merchantToken: "secret-merchant-key",
   systemToken: "secret-system-key",
@@ -135,7 +140,20 @@ authMaster.setKeys({
 ```
 
 - Keys are stored in-memory (per-process).
-- Call this once at startup (before using `create`/`checker`/middlewares).
+- You can also later call `authMaster.setKeys({...})` to replace them at runtime.
+
+---
+
+### `setKeys(keys: Record<string, string>) => { keys: Record<string, string> }`
+
+Replaces the current key map at runtime.
+
+```ts
+authMaster.setKeys({
+  userToken: "new-user-key",
+  adminToken: "new-admin-key",
+});
+```
 
 ---
 
@@ -148,7 +166,7 @@ authMaster.setKeys({
 ```ts
 interface CreateType {
   data: any; // Payload to embed → stored under { data: ... }
-  keyName: string; // One of the names you passed to setKeys()
+  keyName: string; // One of the names you registered
   expiresIn?: string | number; // e.g. "1h", "2d", or 3600 (seconds)
 }
 ```
@@ -306,7 +324,7 @@ export interface AuthMasterSocket extends Socket {
 
 export interface CreateType {
   data: any;
-  keyName: string; // must match a name passed to setKeys()
+  keyName: string; // must match a name registered in constructor/setKeys()
   expiresIn?: string | number; // "1h", "2d", or seconds
 }
 
@@ -330,12 +348,11 @@ export type OptionsType = {
 
 ## Build
 
-- ESM → `dist/index.js`
-- CJS fallback → `dist/index.cjs`
-
 ```bash
 npm run build
 ```
+
+- Output: ESM → `dist/index.js`, types → `dist/index.d.ts`
 
 ---
 

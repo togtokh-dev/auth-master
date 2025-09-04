@@ -4,13 +4,13 @@
  * ESM (Node >=18) дээр library-гийн бүх функцийн хэрэглээг шалгах жишээ.
  */
 
-import authMaster from "../src/index.js";
+import { AuthMaster } from "../src/index.js";
 
 /**
  * 1. Эхлээд токений нууц күүдээ тохируулна.
- *    setKeys() дуудах үед config.keys runtime дээр шинэчлэгдэнэ.
+ *    constructor дуудах үед config.keys runtime дээр шинэчлэгдэнэ.
  */
-authMaster.setKeys({
+const authMaster = new AuthMaster({
   userToken: "togtokh.dev.cparking.user",
   merchantToken: "togtokh.dev.cparking.merchant",
   systemToken: "togtokh.dev.cparking.admin",
@@ -50,27 +50,8 @@ async function run() {
   const basicResp = authMaster.basic(sampleHeader);
   console.log("basic() result:", basicResp);
 
-  /**
-   * 5. Express middleware жишээ (mock хийж үзэж болно)
-   *    - checkTokenBearer
-   *    - checkTokenBasic
-   *
-   * Энд шууд дуудалт хийхгүй, Express app дотор ашиглана.
-   * Жишээ:
-   *
-   *   app.get("/secure",
-   *     authMaster.checkTokenBearer(["adminToken"], { required: true }),
-   *     (req, res) => res.json({ ok: true, user: req.user })
-   *   );
-   */
-
-  /**
-   * 6. Socket.IO middleware жишээ
-   *    io.use(authMaster.checkTokenSocket(["userToken"], { required: true }));
-   *    io.on("connection", socket => {
-   *      console.log("connected user", socket.req?.user_id);
-   *    });
-   */
+  // VSCode IntelliSense example (middleware signature compile OK)
+  authMaster.checkTokenBearer(["userToken"], { required: true });
 
   console.log("=== AUTH MASTER TEST END ===");
 }

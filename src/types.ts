@@ -1,6 +1,7 @@
 import { Request } from "express";
 import { Socket } from "socket.io";
-// Helpers.
+
+/** Human duration string like "1h", "2d 3h", etc. */
 type Unit =
   | "Years"
   | "Year"
@@ -33,14 +34,12 @@ type Unit =
   | "Msecs"
   | "Msec"
   | "Ms";
-
 type UnitAnyCase = Unit | Uppercase<Unit> | Lowercase<Unit>;
-
 export type StringValue =
   | `${number}`
   | `${number}${UnitAnyCase}`
   | `${number} ${UnitAnyCase}`;
-/** Request/Socket дээр нэмэх утгууд */
+
 export interface AuthMasterUser {
   tokenUser?: string;
   token?: string;
@@ -70,38 +69,25 @@ export interface AuthMasterRequest extends Request {
 }
 
 /** Public API types */
-export interface CreateType {
+export interface CreateType<K extends string = string> {
   data: any;
-  /**
-   * JWT expiration
-   * - number → seconds (e.g. 60, 3600)
-   * - string → human format (e.g. "2d", "10h")
-   */
   expiresIn?: StringValue | number;
-  keyName: string;
+  keyName: K;
 }
 
-export interface CheckerType {
+export interface CheckerType<K extends string = string> {
   token: string | undefined | null;
-  keyName: string;
+  keyName: K;
 }
 
-export interface ConfigType<T extends string = string> {
-  keys: Record<T, string>;
+export interface ConfigType<K extends string = string> {
+  keys: Record<K, string>;
 }
 
 export type OptionsType = {
   /** If required=true, middleware responds 401 instead of next() */
   required?: boolean;
 };
-
-/** ---- Legacy aliases (backward-compat) ---- */
-export type authMasterRequest = AuthMasterRequest;
-export type authMasterSocket = AuthMasterSocket;
-export type createType = CreateType;
-export type ckeckerType = CheckerType; // (typo kept intentionally)
-export type configType = ConfigType;
-export type optionsType = OptionsType;
 
 /** Helper for consumers: infer key names from your keys object */
 export type InferKeyNames<T extends Record<string, string>> = keyof T & string;
