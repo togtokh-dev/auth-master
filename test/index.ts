@@ -51,7 +51,7 @@ async function run() {
   console.log("basic() result:", basicResp);
 
   // VSCode IntelliSense example (middleware signature compile OK)
-  authMaster.checkTokenBearer(["userToken"], { required: true });
+  authMaster.checkTokenBearer(["merchantToken"], { required: true });
 
   console.log("=== AUTH MASTER TEST END ===");
 }

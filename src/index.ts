@@ -98,7 +98,11 @@ export class AuthMaster<
 
   public checker(
     args: CheckerType<InferKeyNames<(typeof this._config)["keys"]>>,
-  ): JsonResp<any> {
+  ): JsonResp<{
+    data: any;
+    iat: number | undefined;
+    exp: number | undefined;
+  }> {
     try {
       const { token, keyName } = args;
       const key = this._config.keys[keyName];
@@ -107,7 +111,7 @@ export class AuthMaster<
 
       const clean = stripBearer(token);
       const vopts: VerifyOptions = { algorithms: ["HS256"] };
-      const decoded = jwt.verify(clean, key, vopts);
+      const decoded: any = jwt.verify(clean, key, vopts);
 
       return { success: true, message: "success", data: decoded, code: "200" };
     } catch (err: any) {
@@ -184,7 +188,7 @@ export class AuthMaster<
         for (const keyName of users) {
           const result = this.checker({ token, keyName });
           if (result.success && result.data) {
-            const payload: any = result.data.data;
+            const payload = result.data.data;
             req.authMaster = payload;
             req._id = payload?._id;
             req.user_id = payload?.user_id;
@@ -264,7 +268,7 @@ export class AuthMaster<
         for (const keyName of users) {
           const result = this.checker({ token, keyName });
           if (result.success && result.data) {
-            const payload: any = result.data.data;
+            const payload = result.data.data;
             socket.req = {
               authMaster: payload,
               _id: payload?._id,
